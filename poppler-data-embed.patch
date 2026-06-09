@@ -1,0 +1,96 @@
+--- a/poppler/GlobalParams.cc
++++ b/poppler/GlobalParams.cc
+@@ -82,6 +82,7 @@
+ #include "CMap.h"
+ #include "FontEncodingTables.h"
+ #include "GlobalParams.h"
++#include "unpin_data_vfs.h"
+ #include "GfxFont.h"
+ 
+ #ifdef WITH_FONTCONFIGURATION_FONTCONFIG
+@@ -460,27 +461,36 @@
+ 
+ void GlobalParams::scanEncodingDirs()
+ {
+-    std::string dataRoot = !popplerDataDir.empty() ? popplerDataDir : std::string { POPPLER_DATADIR };
++    // unpins: the poppler-data tree (nameToUnicode/cidToUnicode/unicodeMap/cMap)
++    // is embedded as a ZIP compiled into the binary; enumerate it from the ZIP
++    // index instead of scanning an on-disk POPPLER_DATADIR. Stored paths are
++    // ZIP-internal keys, served by unpin_data_fopen() (see unpin_data_vfs.c).
++    char **names;
+ 
+-    std::error_code ec; // if ec is set, we also get the end iterator, so that's kind of okay.  If not creating with a error code, we get an exception if poppler data is missing
+-    for (const auto &entry : std::filesystem::directory_iterator { dataRoot + "/nameToUnicode", ec }) {
+-        if (entry.is_regular_file()) {
+-            parseNameToUnicode(entry.path());
+-        }
++    names = unpin_data_list("nameToUnicode/", 0);
++    for (char **e = names; *e; ++e) {
++        parseNameToUnicode(std::filesystem::path(std::string("nameToUnicode/") + *e));
+     }
++    unpin_data_list_free(names);
+ 
+-    for (const auto &entry : std::filesystem::directory_iterator { dataRoot + "/cidToUnicode", ec }) {
+-        addCIDToUnicode(entry.path().filename().string(), entry.path().string());
++    names = unpin_data_list("cidToUnicode/", 0);
++    for (char **e = names; *e; ++e) {
++        addCIDToUnicode(std::string(*e), std::string("cidToUnicode/") + *e);
+     }
++    unpin_data_list_free(names);
+ 
+-    for (const auto &entry : std::filesystem::directory_iterator { dataRoot + "/unicodeMap", ec }) {
+-        addUnicodeMap(entry.path().filename().string(), entry.path().string());
++    names = unpin_data_list("unicodeMap/", 0);
++    for (char **e = names; *e; ++e) {
++        addUnicodeMap(std::string(*e), std::string("unicodeMap/") + *e);
+     }
++    unpin_data_list_free(names);
+ 
+-    for (const auto &entry : std::filesystem::directory_iterator { dataRoot + "/cMap", ec }) {
+-        addCMapDir(entry.path().filename().string(), entry.path().string());
+-        toUnicodeDirs.push_back(entry.path().string());
++    names = unpin_data_list("cMap/", 1);
++    for (char **e = names; *e; ++e) {
++        addCMapDir(std::string(*e), std::string("cMap/") + *e);
++        toUnicodeDirs.push_back(std::string("cMap/") + *e);
+     }
++    unpin_data_list_free(names);
+ }
+ 
+ void GlobalParams::parseNameToUnicode(const std::filesystem::path &name)
+@@ -492,7 +502,7 @@
+     Unicode u;
+     char *tokptr;
+ 
+-    if (!(f = openFile(name.string().c_str(), "r"))) {
++    if (!(f = unpin_data_fopen(name.string().c_str()))) {
+         error(errIO, -1, "Couldn't open 'nameToUnicode' file '{0:s}'", name.string().c_str());
+         return;
+     }
+@@ -596,7 +606,7 @@
+     globalParamsLocker();
+     const auto unicodeMap = unicodeMaps.find(encodingName);
+     if (unicodeMap != unicodeMaps.end()) {
+-        file = openFile(unicodeMap->second.c_str(), "r");
++        file = unpin_data_fopen(unicodeMap->second.c_str());
+     }
+ 
+     return file;
+@@ -611,7 +621,7 @@
+     for (auto cMapDir = collectionCMapDirs.first; cMapDir != collectionCMapDirs.second; ++cMapDir) {
+         auto *const path = new GooString(cMapDir->second);
+         appendToPath(path, cMapName.c_str());
+-        file = openFile(path->c_str(), "r");
++        file = unpin_data_fopen(path->c_str());
+         delete path;
+         if (file) {
+             break;
+@@ -629,7 +639,7 @@
+     globalParamsLocker();
+     for (const std::string &dir : toUnicodeDirs) {
+         fileName = appendToPath(new GooString(dir), name.c_str());
+-        f = openFile(fileName->c_str(), "r");
++        f = unpin_data_fopen(fileName->c_str());
+         delete fileName;
+         if (f) {
+             return f;
