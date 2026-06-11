@@ -1,5 +1,5 @@
 {
-  description = "Standalone build of poppler-utils (pdfinfo, pdftotext, pdftoppm, …)";
+  description = "poppler-utils (pdfinfo, pdftotext, pdftoppm, …) as a single self-contained binary";
 
   nixConfig = {
     extra-substituters = [ "https://unpins.cachix.org" ];
