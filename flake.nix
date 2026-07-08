@@ -217,6 +217,11 @@
             # uses `__float128`, whose soft-float builtins (__floatditf/__divtf3/…)
             # the engine's compiler-rt/musl bitcode doesn't provide, so ld.lld fails
             # undefined. poppler links only libpixman-1.a; disable the tests.
+            # (pixman's meson also does a cc.sizeof('long') probe that meson RUNS,
+            # breaking the armv7l CI cross where the aarch64 runner can't execute
+            # the armv7l binary — fixed in nix-lib by adding pixman to
+            # mesonBuildCcPkgs, which pins meson's build-machine cc to the native
+            # builder, not with a flag here.)
             pixman = prev.pixman.overrideAttrs (o: {
               mesonFlags = (o.mesonFlags or [ ]) ++ [ "-Dtests=disabled" ];
             });
