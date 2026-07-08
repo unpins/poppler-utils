@@ -60,6 +60,20 @@ let
     http2Support = false;
   })).overrideAttrs (old: {
     pname = "curl-pdf-http";
+    # macOS keeps iconv in a standalone libiconv (not libSystem), so nixpkgs
+    # curl carries a bare `-liconv` in NIX_LDFLAGS on darwin. nix-lib's
+    # darwinIconvFixed/withDarwinIconv wire the static libiconv into the FINAL
+    # mkStandaloneFlake link, but not intermediate deps like this curl — and the
+    # engine adapter can't bake libiconv into its stdenv (libiconvReal is built
+    # BY that stdenv → recursion), which is why the project fixes iconv per-drv.
+    # Under the engine the SDK's dynamic libiconv is gone (SDKROOT, static
+    # build), so curl's own configure exe-link test fails "library not found for
+    # -liconv / C compiler cannot create executables". Put the engine's static
+    # GNU libiconv (sp.libiconv = the set-level libiconvReal swap) on curl's link
+    # path so the bare `-liconv` resolves; with all charset-using protocols
+    # disabled curl calls no iconv, so nothing is pulled — libcurl.a is unchanged.
+    buildInputs = (old.buildInputs or [ ])
+      ++ pkgs.lib.optional isDarwin sp.libiconv;
     # Propagate mbedtls (not just buildInputs) so a static consumer linking
     # libcurl.a gets its -L; libcurl.pc's Libs.private lists bare -lmbed*.
     propagatedBuildInputs = (old.propagatedBuildInputs or [ ])
@@ -120,8 +134,17 @@ sp.poppler-utils.overrideAttrs (old: {
   # http/https-only build (curlPdf) on every platform.
   propagatedBuildInputs =
     let
+      # Engine self-fold (Linux + darwin): also drop boost. poppler only uses
+      # HEADER-ONLY boost (Splash curve flattening), but keeping boost as a
+      # propagated input makes the bitcode self-fold's inferLinkInputs glob boost's
+      # ENTIRE lib/*.a dir — including libboost_stacktrace_from_exception.a, which
+      # deliberately INTERPOSES __cxa_allocate_exception and then collides with
+      # libc++abi in the static fold (`duplicate symbol`). Disabling boost
+      # (ENABLE_BOOST=OFF below) removes the need; dropping the input removes the
+      # glob. Only windows keeps boost (its objcopy fold doesn't glob dep dirs).
+      drop = [ "nss" "libtiff" ] ++ pkgs.lib.optional (!isWindows) "boost";
       kept = builtins.filter
-        (x: x != null && !builtins.elem (x.pname or "") [ "nss" "libtiff" ])
+        (x: x != null && !builtins.elem (x.pname or "") drop)
         (old.propagatedBuildInputs or [ ]);
     in
     map (x: if (x.pname or "") == "curl" then curlPdf else x) kept;
@@ -135,7 +158,12 @@ sp.poppler-utils.overrideAttrs (old: {
     "-DENABLE_CPP=OFF"
     "-DBUILD_MANUAL_TESTS=OFF"
     "-DBUILD_CPP_TESTS=OFF"
-  ];
+  ]
+  # Engine self-fold (Linux + darwin): boost is header-only here and its compiled
+  # stacktrace lib collides with libc++abi in the self-fold (see
+  # propagatedBuildInputs). Splash falls back to its non-boost curve path; the
+  # utils render unchanged.
+  ++ pkgs.lib.optional (!isWindows) "-DENABLE_BOOST=OFF";
 
   # Static fontconfig.a / freetype.a / cairo.a / curl.a leave transitive symbols
   # undefined and freetype<->harfbuzz are mutually recursive; cmake links them in
@@ -167,19 +195,15 @@ sp.poppler-utils.overrideAttrs (old: {
     # group markers, so append the same closure bare there.
     ${if isDarwin
       then ''
-        # darwin: fold static libc++ — clang++ links /usr/lib/libc++.1.dylib by
-        # default and the allow-list forbids it. A shim dir exposing the static
-        # archive as libc++.a / libstdc++.a / libc++abi.a, on the link path
-        # ahead of the SDK, lets -search_paths_first (added to the relink) bind
-        # the implicit -lc++/-lc++abi to the .a (the dec265 recipe). Also add the
-        # cairo Quartz/CoreText frameworks (cairo-quartz-font.c.o needs CG*/CT*;
-        # poppler's per-app links don't pull them) — all four public, allow-list
-        # OK. libiconv's `_libiconv*` come from the -liconv already in $libs.
-        mkdir -p "$TMPDIR/cxx-static"
-        ln -sf ${sp.libcxx}/lib/libc++.a    "$TMPDIR/cxx-static/libc++.a"
-        ln -sf ${sp.libcxx}/lib/libc++.a    "$TMPDIR/cxx-static/libstdc++.a"
-        ln -sf ${sp.libcxx}/lib/libc++abi.a "$TMPDIR/cxx-static/libc++abi.a"
-        export NIX_LDFLAGS="-L$TMPDIR/cxx-static $NIX_LDFLAGS $libs -framework ApplicationServices -framework CoreGraphics -framework CoreText -framework CoreFoundation"''
+        # darwin (engine self-fold): libc++ is linked statically by the engine
+        # stdenv itself (cxx=true), so no libc++ shim is needed — a second copy
+        # would only collide. Just add the cairo Quartz/CoreText frameworks
+        # (cairo-quartz-font.c.o needs CG*/CT*; poppler's per-app links don't pull
+        # them) so the per-app links — captured and replayed by the self-fold —
+        # resolve them. All four are public, allow-list OK. ld64 re-scans archives
+        # on its own, so the closure goes in bare (no --start-group). iconv is
+        # wired by nix-lib's darwinIconvFixed on the final drv.
+        export NIX_LDFLAGS="$NIX_LDFLAGS $libs -framework ApplicationServices -framework CoreGraphics -framework CoreText -framework CoreFoundation"''
       else ''export NIX_LDFLAGS="$NIX_LDFLAGS --start-group $libs --end-group"''}
   '';
 })

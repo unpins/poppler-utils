@@ -65,6 +65,13 @@ let
       [ -n "$apps" ] || { echo "multicall: no util objects found" >&2; exit 1; }
       printf '%s\n' $apps > multicall/apps.list
 
+      # multicallTableDispatcherC (below) reads multicall/applets.list as a TSV
+      # <applet-name>\t<fn-base>, emitting <fn-base>_main. For poppler every
+      # applet name IS its fn-base (pdfinfo -> pdfinfo_main, matching the
+      # `main -> <app>_main` rename below), so the two columns are identical.
+      : > multicall/applets.list
+      for a in $apps; do printf '%s\t%s\n' "$a" "$a" >> multicall/applets.list; done
+
       # Mach-O leads C symbols with '_'; detect once from the first app's main.
       first=$(echo $apps | awk '{print $1}')
       if $NM --defined-only "utils/CMakeFiles/$first.dir/$first.cc.$objext" 2>/dev/null \
@@ -98,7 +105,7 @@ let
       # Dispatcher (shared canonical generator). Applet C symbol = sanitized
       # applet name + _main; poppler util names are already valid identifiers,
       # so pdfinfo -> pdfinfo_main, matching the rename above.
-${lib.multicallDispatcherC { name = "poppler-utils"; defaultApplet = "pdfinfo"; }}
+${lib.multicallTableDispatcherC { name = "poppler-utils"; defaultApplet = "pdfinfo"; }}
       $CC -O2 -c -o multicall/dispatcher.o multicall/dispatcher.c
 
       # Reuse a template app's resolved link command VERBATIM up to `-o`
