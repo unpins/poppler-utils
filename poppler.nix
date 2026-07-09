@@ -134,17 +134,8 @@ sp.poppler-utils.overrideAttrs (old: {
   # http/https-only build (curlPdf) on every platform.
   propagatedBuildInputs =
     let
-      # Engine self-fold (Linux + darwin): also drop boost. poppler only uses
-      # HEADER-ONLY boost (Splash curve flattening), but keeping boost as a
-      # propagated input makes the bitcode self-fold's inferLinkInputs glob boost's
-      # ENTIRE lib/*.a dir — including libboost_stacktrace_from_exception.a, which
-      # deliberately INTERPOSES __cxa_allocate_exception and then collides with
-      # libc++abi in the static fold (`duplicate symbol`). Disabling boost
-      # (ENABLE_BOOST=OFF below) removes the need; dropping the input removes the
-      # glob. Only windows keeps boost (its objcopy fold doesn't glob dep dirs).
-      drop = [ "nss" "libtiff" ] ++ pkgs.lib.optional (!isWindows) "boost";
       kept = builtins.filter
-        (x: x != null && !builtins.elem (x.pname or "") drop)
+        (x: x != null && !builtins.elem (x.pname or "") [ "nss" "libtiff" ])
         (old.propagatedBuildInputs or [ ]);
     in
     map (x: if (x.pname or "") == "curl" then curlPdf else x) kept;
@@ -158,12 +149,7 @@ sp.poppler-utils.overrideAttrs (old: {
     "-DENABLE_CPP=OFF"
     "-DBUILD_MANUAL_TESTS=OFF"
     "-DBUILD_CPP_TESTS=OFF"
-  ]
-  # Engine self-fold (Linux + darwin): boost is header-only here and its compiled
-  # stacktrace lib collides with libc++abi in the self-fold (see
-  # propagatedBuildInputs). Splash falls back to its non-boost curve path; the
-  # utils render unchanged.
-  ++ pkgs.lib.optional (!isWindows) "-DENABLE_BOOST=OFF";
+  ];
 
   # Static fontconfig.a / freetype.a / cairo.a / curl.a leave transitive symbols
   # undefined and freetype<->harfbuzz are mutually recursive; cmake links them in

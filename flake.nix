@@ -136,6 +136,19 @@
               doInstallCheck = false;
               cmakeFlags = (o.cmakeFlags or [ ]) ++ [ "-DWITH_TESTS=0" ];
             });
+
+            # poppler's ENABLE_BOOST (Splash perf, `boost::container::small_vector`)
+            # is HEADER-ONLY: cmake links `Boost::boost`, the header INTERFACE target
+            # (include dirs, no library), so NO boost archive is ever referenced.
+            # Don't build the static-musl boost at all — its whole ~30-lib compile
+            # would be discarded, and it ships libboost_stacktrace_from_exception.a
+            # (a deliberate __cxa_allocate_exception INTERPOSER) which the self-fold's
+            # multicallExternalDepDirs would glob from `lib/*.a` and force-link →
+            # `duplicate symbol` vs libc++abi. Use the NATIVE (cached) boost purely
+            # for headers: its stacktrace libs are `.so` (glob finds no interposer
+            # .a), the two static .a it does ship (exception, test_exec_monitor) are
+            # unreferenced/inert, and nothing boost-compiled enters the static binary.
+            boost = pkgs.boost;
           } // (if host.isDarwin then {
             # darwin: the cairo/text-render chain needs nix-lib's cross-within-
             # darwin fixes (glib/graphite2/fontconfig — same set rsvg-convert/ffmpeg
