@@ -105,7 +105,10 @@ let
       # Dispatcher (shared canonical generator). Applet C symbol = sanitized
       # applet name + _main; poppler util names are already valid identifiers,
       # so pdfinfo -> pdfinfo_main, matching the rename above.
-${lib.multicallTableDispatcherC { name = "poppler-utils"; defaultApplet = "pdfinfo"; }}
+      # `windows`: every util opens with Win32Console(&argc, &argv), which
+      # rebuilds argv from the real command line — without the rewrite they
+      # re-read the selector.
+${lib.multicallTableDispatcherC { name = "poppler-utils"; defaultApplet = "pdfinfo"; windows = isWindows; }}
       $CC -O2 -c -o multicall/dispatcher.o multicall/dispatcher.c
 
       # Reuse a template app's resolved link command VERBATIM up to `-o`
