@@ -94,9 +94,8 @@
       #
       # The cairo/text-render chain needs nix-lib's cross-within-darwin fixes on
       # macOS (glib/cairo/fontconfig/graphite2 — same set rsvg-convert/ffmpeg
-      # use; each short-circuits to prev off darwin), and the libjpeg-turbo RVV
-      # fix on riscv64 (its SIMD coverage helper won't compile). Both no-ops
-      # elsewhere, so the other arches keep the unmodified (cache-hit) deps.
+      # use; each short-circuits to prev off darwin), no-ops elsewhere, so the
+      # other arches keep the unmodified (cache-hit) deps.
       build = pkgs:
         let
           host = pkgs.stdenv.hostPlatform;
@@ -115,11 +114,7 @@
         # rewrite bitcode, so it must NOT run over an engine build.
         let
           eng = engStdenv pkgs;
-          sp = (if host.isRiscV
-                then pkgs.pkgsStatic.extend (final: prev: {
-                  libjpeg = ulib.nativeFixes."libjpeg-turbo" prev;
-                })
-                else pkgs.pkgsStatic).extend (final: prev: {
+          sp = pkgs.pkgsStatic.extend (final: prev: {
             poppler-utils = prev.poppler-utils.override { stdenv = eng; };
 
             # libjpeg-turbo's `bmpsizetest` feeds a crafted BMP header with
@@ -129,8 +124,7 @@
             # tools-only) which never enters the libjpeg.a poppler links (JPEG
             # decode only, covered by the 331 passing codec tests). Same call
             # jpeg-tools makes: build no test suite. Platform-independent (the OOM
-            # is engine+static, not arch), so applied on Linux and darwin alike;
-            # composes over the riscv64 nativeFixes base above.
+            # is engine+static, not arch), so applied on Linux and darwin alike.
             libjpeg = prev.libjpeg.overrideAttrs (o: {
               doCheck = false;
               doInstallCheck = false;
