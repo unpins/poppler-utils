@@ -2,7 +2,7 @@
 # pdftocairo, pdfimages, pdffonts, pdfdetach, pdfattach, pdfseparate, pdftops,
 # pdftohtml, pdfunite). The unpins one-pkg-one-bin rule folds them into a single
 # multicall binary at $out/bin/poppler-utils that dispatches on argv[0]; a bare
-# invocation runs pdfinfo (defaultApplet) so `--version` smoke is clean.
+# invocation lists them (`poppler-utils` is not itself a program).
 # `lib.withAliases` embeds the 12 names so `unpin install` recreates the argv[0]
 # shims on PATH.
 #
@@ -108,7 +108,7 @@ let
       # `windows`: every util opens with Win32Console(&argc, &argv), which
       # rebuilds argv from the real command line — without the rewrite they
       # re-read the selector.
-${lib.multicallTableDispatcherC { name = "poppler-utils"; defaultApplet = "pdfinfo"; windows = isWindows; }}
+${lib.multicallTableDispatcherC { name = "poppler-utils"; windows = isWindows; }}
       $CC -O2 -c -o multicall/dispatcher.o multicall/dispatcher.c
 
       # Reuse a template app's resolved link command VERBATIM up to `-o`

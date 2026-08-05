@@ -43,18 +43,16 @@
     ulib.mkStandaloneFlake {
       inherit self;
       name = "poppler-utils";
-      # A bare `poppler-utils -v` dispatches to pdfinfo (defaultApplet) ->
-      # "pdfinfo version 25.10.0". poppler's utils use `-v` for version (a bare
-      # `--version` is parsed as a filename), so smoke on `-v`.
-      smoke = [ "-v" ];
+      # poppler's utils use `-v` for version (a bare `--version` is parsed as a
+      # filename), so smoke on `-v` -> "pdfinfo version 25.10.0".
+      smoke = [ "--unpin-program=pdfinfo" "-v" ];
       smokePattern = "version 2[0-9]\\.";
 
       # Engine + bitcode self-fold (native Linux): build poppler-utils with the
       # unpin-llvm engine (→ libc++) and self-fold the 12 pdf* utils into one
-      # binary. C++ → requires.cxx; pdfinfo is the bare-invocation default.
+      # binary. C++ → requires.cxx.
       engine = "unpin-llvm";
       multicall = {
-        defaultProgram = "pdfinfo";
         programs = [
           { name = "pdfattach"; }
           { name = "pdfdetach"; }
