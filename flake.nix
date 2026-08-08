@@ -8,9 +8,9 @@
 
   inputs.unpins-lib.url = "github:unpins/nix-lib";
 
-  # poppler's 12 CLI utilities folded into one argv[0]-dispatching binary
-  # (./multicall.nix), built fully static for 6 Linux arches + Windows + 2
-  # macOS. The base poppler config (./poppler.nix) turns off only the
+  # poppler's 12 CLI utilities folded into one argv[0]-dispatching binary by the
+  # engine's bitcode self-fold, built fully static for 6 Linux arches + Windows
+  # + 2 macOS. The base poppler config (./poppler.nix) turns off only the
   # static-incompatible bits (NSS/GPGME signatures, libtiff) and the unused
   # glib/cpp bindings; curl URL-loading is kept (mbedtls TLS on Linux). The CMap/
   # encoding data (poppler-data) is embedded in the binary via a miniz ZIP
@@ -18,8 +18,6 @@
   outputs = { self, unpins-lib }:
     let
       ulib = unpins-lib.lib;
-      mkMulti = pkgs: extra:
-        import ./multicall.nix { lib = pkgs.lib // ulib; } extra;
 
       # Engine path (native Linux): poppler's utils are C++, but ALL external
       # deps are C (cairo/freetype/fontconfig/jpeg/openjpeg/lcms2/curl/expat) —
@@ -48,11 +46,12 @@
       smoke = [ "--unpin-program=pdfinfo" "-v" ];
       smokePattern = "version 2[0-9]\\.";
 
-      # Engine + bitcode self-fold (native Linux): build poppler-utils with the
+      # Engine + bitcode self-fold on every target: build poppler-utils with the
       # unpin-llvm engine (→ libc++) and self-fold the 12 pdf* utils into one
       # binary. C++ → requires.cxx.
       engine = "unpin-llvm";
       multicall = {
+        windows = true;
         programs = [
           { name = "pdfattach"; }
           { name = "pdfdetach"; }
@@ -107,9 +106,8 @@
         # unpin-llvm engine stdenv (bitcode LTO + link capture) and return it
         # directly — mkStandaloneFlake's bitcode self-fold packs the 12 utils into
         # one binary. Both platforms self-fold identically; only the per-platform
-        # dep fixes below differ. Windows (mingw, no engine → native objects) uses
-        # windowsBuild's multicall.nix objcopy fold instead — objcopy cannot
-        # rewrite bitcode, so it must NOT run over an engine build.
+        # dep fixes below differ. The mingw cross gets its engine stdenv set-wide
+        # from multicall.windows = true, so it needs no swap of its own.
         let
           eng = engStdenv pkgs;
           sp = pkgs.pkgsStatic.extend (final: prev: {
@@ -246,19 +244,21 @@
         in
         import ./poppler.nix { inherit pkgs ulib sp; };
 
-      # mingw: heavy C++ combined link → force the runtime static so the .exe
-      # carries no libstdc++-6/libgcc_s/libmcfgthread DLL, and drive it through
-      # lld (binutils 2.44 drops cxx11 COMDAT members in the combined PE link;
-      # same fix as heif/srt). `-no-pie` is load-bearing: the mingw gcc driver
-      # passes `-pie` (hardening default), which ld.lld rejects in PE mode
-      # (`unknown argument: -pie`) and silently falls back to binutils ld — the
-      # very linker we are routing around. -no-pie keeps the combined link on lld.
+      # mingw: the old hand-rolled fold needed -static-libgcc/-static-libstdc++
+      # to keep the runtime DLLs out and -fuse-ld=lld -no-pie to steer the
+      # combined PE link away from binutils 2.44 (which drops cxx11 COMDAT
+      # members). None of it survives the move: the engine links libc++ from the
+      # unpin sysroot with no libstdc++/libgcc at all, and always through lld.
       windowsBuild = pkgs:
-        let sp = ulib.mingwStaticCross pkgs; in
-        mkMulti pkgs {
-          inherit pkgs;
-          poppler = import ./poppler.nix { inherit pkgs ulib sp; };
-          extraLinkFlags = "-static -static-libgcc -static-libstdc++ -fuse-ld=lld -no-pie";
-        };
+        let
+          # Header-only boost, for the two reasons the native scope spells out
+          # above — except here the interposer bites harder: a mingw boost is
+          # `.a`-only, so libboost_stacktrace_from_exception.a cannot hide behind
+          # a `.so` the way it does on the native (glibc) set.
+          sp = (ulib.mingwStaticCross pkgs).extend (_final: _prev: {
+            boost = pkgs.boost;
+          });
+        in
+        import ./poppler.nix { inherit pkgs ulib sp; };
     };
 }
