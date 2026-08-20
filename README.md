@@ -1,6 +1,6 @@
 # poppler-utils
 
-[poppler](https://poppler.freedesktop.org/)'s PDF command-line utilities —
+[poppler](https://poppler.freedesktop.org/)'s PDF command-line programs —
 `pdfinfo`, `pdftotext`, `pdftoppm`, and nine more. A single self-contained
 binary, built natively for Linux, macOS, and Windows.
 

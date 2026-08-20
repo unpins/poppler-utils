@@ -94,3 +94,22 @@
          delete fileName;
          if (f) {
              return f;
+--- a/poppler/CharCodeToUnicode.cc
++++ b/poppler/CharCodeToUnicode.cc
+@@ -46,6 +46,7 @@
+ #include "Error.h"
+ #include "GlobalParams.h"
+ #include "PSTokenizer.h"
++#include "unpin_data_vfs.h"
+ #include "CharCodeToUnicode.h"
+ #include "UTF.h"
+ 
+@@ -129,7 +130,7 @@
+     char buf[64];
+     Unicode u;
+ 
+-    if (!(f = openFile(fileName, "r"))) {
++    if (!(f = unpin_data_fopen(fileName))) {
+         error(errIO, -1, "Couldn't open cidToUnicode file '{0:s}'", fileName);
+         return nullptr;
+     }
