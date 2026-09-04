@@ -14,12 +14,14 @@ Part of the [unpins](https://unpins.org) catalog; install it with
 
 ## Usage
 
-Run the `poppler-utils` program with [unpin](https://github.com/unpins/unpin) —
-a bare `poppler-utils` runs `pdfinfo`:
+Run a program with [unpin](https://github.com/unpins/unpin):
 
 ```bash
-unpin poppler-utils document.pdf
+unpin poppler-utils --unpin-program=pdfinfo document.pdf
+unpin poppler-utils --unpin-program=pdftotext document.pdf -
 ```
+
+A bare `unpin poppler-utils` lists the programs it holds.
 
 To install the `pdfinfo`, `pdftotext`, `pdftoppm`, … commands onto your PATH:
 
