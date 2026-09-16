@@ -67,6 +67,20 @@
           { name = "pdfunite"; }
         ];
         requires.cxx = true;
+        # The 12 utils share one libpoppler, and libpoppler carries the whole
+        # embedded CMap/encoding tree (4.7 MB compressed). Folding per program
+        # gave each of them its own copy of it: 3303 zip entries in the binary
+        # where the data has 289, 60 MB of .rodata, a 78 MB artifact. Fold the
+        # shared archives once instead — same 12 programs, same output on all
+        # 54 oracle cases, 14 MB.
+        foldSharedArchives = true;
+        # The `.exe` still names the on-disk poppler-data tree even though it
+        # reads the embedded one — a path that exists on no Windows machine, and
+        # 6 MB of closure behind a 13 MB binary. (Linux and macOS do not
+        # reference it at all; this only ever fires on the mingw artifact. It
+        # belongs to `multicall`, not the flake's top level: the mega path reads
+        # `multicall.removeReferences` and ignores the outer one.)
+        removeReferences = [ "poppler-data" ];
         # darwin: the bitcode self-fold relinks the 12 utils from the captured
         # link inputs, but the capture records only `-l`/`-L` (not `-framework`),
         # so the Quartz frameworks cairo-quartz-font.c.o references (CGContext*,
@@ -111,7 +125,62 @@
         let
           eng = engStdenv pkgs;
           sp = pkgs.pkgsStatic.extend (final: prev: {
-            poppler-utils = prev.poppler-utils.override { stdenv = eng; };
+            poppler-utils = (prev.poppler-utils.override { stdenv = eng; }).overrideAttrs (o: {
+              # Upstream's suite is not runnable here: it wants TESTDATADIR, a
+              # SEPARATE git checkout of reference PDFs that the tarball does not
+              # carry, and what it builds are GTK/Qt viewers we do not.
+              doCheck = false;
+              # So check the one thing that is ours and that `-v` cannot see: the
+              # CMap/encoding tree lives INSIDE the binary, and a PDF that needs
+              # it must still extract. Two files, written here rather than
+              # shipped, because poppler reconstructs a missing xref — the second
+              # one names a predefined CMap (UniJIS-UCS2-H) with no embedded font,
+              # so its text can only come out if the embedded tree is reachable.
+              doInstallCheck = pkgs.stdenv.buildPlatform.canExecute
+                pkgs.pkgsStatic.stdenv.hostPlatform;
+              installCheckPhase = ''
+                runHook preInstallCheck
+                cat > ascii.pdf <<"PDFEOF"
+%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 46 >>
+stream
+BT /F1 12 Tf 10 50 Td (embedded data ok) Tj ET
+endstream
+endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+trailer << /Size 6 /Root 1 0 R >>
+%%EOF
+PDFEOF
+                cat > cjk.pdf <<"PDFEOF"
+%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 120] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 43 >>
+stream
+BT /F1 20 Tf 20 60 Td <65E5672C8A9E> Tj ET
+endstream
+endobj
+5 0 obj << /Type /Font /Subtype /Type0 /BaseFont /KozMinPr6N-Regular /Encoding /UniJIS-UCS2-H /DescendantFonts [6 0 R] >> endobj
+6 0 obj << /Type /Font /Subtype /CIDFontType0 /BaseFont /KozMinPr6N-Regular /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 6 >> /FontDescriptor 7 0 R /DW 1000 >> endobj
+7 0 obj << /Type /FontDescriptor /FontName /KozMinPr6N-Regular /Flags 4 /FontBBox [-437 -340 1147 1317] /ItalicAngle 0 /Ascent 1317 /Descent -349 /CapHeight 742 /StemV 80 >> endobj
+trailer << /Size 8 /Root 1 0 R >>
+%%EOF
+PDFEOF
+                # Into files, not a pipe: `grep -q` closes the pipe on its
+                # first match, pdftotext dies of SIGPIPE, and pipefail then
+                # fails the phase with nothing printed.
+                "$out/bin/pdftotext" ascii.pdf - > ascii.out
+                "$out/bin/pdftotext" cjk.pdf -   > cjk.out
+                cat ascii.out cjk.out
+                grep -q "embedded data ok" ascii.out
+                grep -q "$(printf '\346\227\245\346\234\254\350\252\236')" cjk.out
+                runHook postInstallCheck
+              '';
+            });
 
             # libjpeg-turbo's `bmpsizetest` feeds a crafted BMP header with
             # near-INT_MAX dimensions to check the size-overflow guard rejects it;

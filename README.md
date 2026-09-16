@@ -71,6 +71,16 @@ standalone binaries for manual download.
   crypto on macOS/Windows; only http/https are wired.
 - Windows is cross-built with mingw and macOS links the system frameworks only;
   neither ships a companion DLL or dylib.
+- **Rendering to images needs fonts on the machine.** Text extraction
+  (`pdftotext`, `pdfinfo`, …) is self-contained, but drawing a page whose fonts
+  are not embedded in the PDF — `pdftoppm`, `pdftocairo` — asks fontconfig for a
+  substitute, and on a machine with no font packages at all the page comes out
+  blank with `Couldn't find a font for 'Helvetica'`. Any desktop or distro image
+  has fonts; minimal containers may not.
+- The CMap/encoding tree is checked at build time, not assumed: the build
+  extracts text from a PDF that names a predefined Japanese CMap and carries no
+  embedded font, so it can only succeed if the tree inside the binary is
+  reachable.
 
 ### Dropped features
 

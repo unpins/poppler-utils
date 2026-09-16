@@ -110,10 +110,53 @@ void unpin_data_list_free(char **list)
     free(list);
 }
 
-FILE *unpin_data_fopen(const char *key)
+/* Normalize what poppler hands us into a ZIP key.
+ *
+ * On Windows this is not cosmetic. poppler builds a cMap lookup with
+ * appendToPath(), and the Win32 arm of that function calls GetFullPathNameA(),
+ * which turns our relative key into an ABSOLUTE path with backslashes:
+ * `cMap/Adobe-Japan1` + `UniJIS-UCS2-H` comes back as
+ * `C:\Users\...\cwd\cMap\Adobe-Japan1\UniJIS-UCS2-H`. Nothing in the
+ * archive matches that, so every predefined CMap went missing on Windows and a
+ * CJK PDF extracted no text at all -- while the same binary on Linux and macOS
+ * was fine. Turn separators into '/' and cut everything before the first
+ * top-level directory of the archive. */
+static const char *unpin_data_key(const char *key, char *buf, size_t buflen)
 {
+    static const char *const roots[] = { "cMap/", "cidToUnicode/", "unicodeMap/", "nameToUnicode/", NULL };
+    size_t i;
+
+    if (!key) {
+        return NULL;
+    }
+    for (i = 0; i + 1 < buflen && key[i]; i++) {
+        buf[i] = (key[i] == '\\') ? '/' : key[i];
+    }
+    if (key[i]) { /* longer than the buffer: leave it to fail the lookup */
+        return key;
+    }
+    buf[i] = '\0';
+
+    for (const char *const *r = roots; *r; r++) {
+        char *hit = strstr(buf, *r);
+        if (hit) {
+            return hit;
+        }
+    }
+    return buf;
+}
+
+FILE *unpin_data_fopen(const char *rawkey)
+{
+    char keybuf[1024];
+    const char *key;
+
     vfs_init();
     if (g_state != 1) {
+        return NULL;
+    }
+    key = unpin_data_key(rawkey, keybuf, sizeof keybuf);
+    if (!key) {
         return NULL;
     }
     int idx = mz_zip_reader_locate_file(&g_zip, key, NULL, 0);
