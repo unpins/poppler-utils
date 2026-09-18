@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Updated to Poppler 26.06.0.
 - The binary is 14 MB instead of 78. Each of the 12 programs carried its own
   copy of the embedded CMap/encoding tree; there is one copy now, shared by all
   of them. Same programs, same output.
