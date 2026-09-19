@@ -149,6 +149,11 @@ sp.poppler-utils.overrideAttrs (old: {
     "-DENABLE_CPP=OFF"
     "-DBUILD_MANUAL_TESTS=OFF"
     "-DBUILD_CPP_TESTS=OFF"
+    # poppler 26.06 is C++20, so CMake >= 3.28 scans every source for C++
+    # modules. With clang that scan runs clang-scan-deps, which the engine
+    # toolchain doesn't ship: every ninja step died on
+    # "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND". poppler has no modules.
+    "-DCMAKE_CXX_SCAN_FOR_MODULES=OFF"
   ];
 
   # Static fontconfig.a / freetype.a / cairo.a / curl.a leave transitive symbols
