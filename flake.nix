@@ -259,17 +259,6 @@ PDFEOF
               });
           } else {
             # Linux cross fixes (no-ops / not pulled on darwin):
-            #
-            # libx11 (pulled by cairo's xlib backend, kept on Linux) has a configure
-            # probe checking whether its cpp needs -undef to stop predefining `unix`;
-            # the engine's clang cpp keeps `unix` defined even under -undef, so the
-            # probe aborts ("defines unix with or without -undef. I don't know what
-            # to do."). RAWCPP only preprocesses X11's host-independent locale text
-            # at build time — hand it the build-host gcc cpp (which honors -undef);
-            # libX11 links as a plain static .a regardless. Same fix as ddcutil.
-            libx11 = prev.libx11.overrideAttrs (_: {
-              RAWCPP = "${final.buildPackages.stdenv.cc}/bin/cpp";
-            });
             # libtiff is NOT linked into poppler (-DENABLE_LIBTIFF=OFF, dropped from
             # the inputs); it is only a transitive build-dep of openjpeg/lcms2. Its
             # auxiliary EXECUTABLES (tools/test/contrib) fail the engine CROSS link —
@@ -291,23 +280,12 @@ PDFEOF
             # undefined. poppler links only libpixman-1.a; disable the tests.
             # (pixman's meson also does a cc.sizeof('long') probe that meson RUNS,
             # breaking the armv7l CI cross where the aarch64 runner can't execute
-            # the armv7l binary — fixed in nix-lib by adding pixman to
-            # mesonBuildCcPkgs, which pins meson's build-machine cc to the native
-            # builder, not with a flag here.)
+            # the armv7l binary. nix-lib fixes that for every meson package at
+            # once — it pins meson's build-machine cc on the two host cpus where
+            # meson can mislabel the builder — so there is nothing to add here,
+            # and no per-package list to keep in sync any more.)
             pixman = prev.pixman.overrideAttrs (o: {
               mesonFlags = (o.mesonFlags or [ ]) ++ [ "-Dtests=disabled" ];
-            });
-            # cairo's meson unconditionally builds the cairo-script debug utility
-            # whenever zlib is present (no meson option to disable it). poppler links
-            # only libcairo.a; under the engine those tool links fail on `undefined
-            # symbol: malloc` (bitcode-musl's weak malloc, forced with -Wl,-u,malloc
-            # in the multicall post-link but not cairo's own meson link). Skip the
-            # subdir; libcairo.a is untouched. (Not needed on darwin: xlib is off.)
-            cairo = prev.cairo.overrideAttrs (o: {
-              postPatch = (o.postPatch or "") + ''
-                substituteInPlace util/meson.build \
-                  --replace-fail "subdir('cairo-script')" ""
-              '';
             });
           }));
         in
