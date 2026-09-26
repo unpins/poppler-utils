@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [26.06.0-1] - 2026-09-26
+
 ### Changed
 
 - Updated to Poppler 26.06.0.
