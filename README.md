@@ -41,13 +41,13 @@ Each tool's man page is embedded — read one with
 
 ```bash
 nix build github:unpins/poppler-utils
-./result/bin/poppler-utils -v
+./result/bin/poppler-utils --unpin-program=pdfinfo -v
 ```
 
 Or run directly:
 
 ```bash
-nix run github:unpins/poppler-utils -- -v
+nix run github:unpins/poppler-utils -- --unpin-program=pdfinfo -v
 ```
 
 The first invocation will offer to add the
