@@ -69,8 +69,7 @@ standalone binaries for manual download.
   predefined CMaps resolve with no on-disk `share/poppler` directory.
 - PDF loading over `http(s)` is kept via libcurl — mbedtls on Linux, native curl
   crypto on macOS/Windows; only http/https are wired.
-- Windows is cross-built with mingw and macOS links the system frameworks only;
-  neither ships a companion DLL or dylib.
+- **Windows:** built with mingw-w64.
 - **Rendering to images needs fonts on the machine.** Text extraction
   (`pdftotext`, `pdfinfo`, …) is self-contained, but drawing a page whose fonts
   are not embedded in the PDF — `pdftoppm`, `pdftocairo` — asks fontconfig for a
@@ -84,7 +83,7 @@ standalone binaries for manual download.
 
 ### Dropped features
 
-Each is off only because it cannot link into a single static binary:
+Each is off only because it cannot link statically:
 
 - **Digital signatures** (`pdfsig`, `pdftocairo -sign`): the NSS and GPGME
   backends need a `dlopen`ed PKCS#11 module / the external `gpgsm` daemon.
