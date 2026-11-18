@@ -203,11 +203,18 @@ PDFEOF
             # would be discarded, and it ships libboost_stacktrace_from_exception.a
             # (a deliberate __cxa_allocate_exception INTERPOSER) which the self-fold's
             # multicallExternalDepDirs would glob from `lib/*.a` and force-link →
-            # `duplicate symbol` vs libc++abi. Use the NATIVE (cached) boost purely
-            # for headers: its stacktrace libs are `.so` (glob finds no interposer
-            # .a), the two static .a it does ship (exception, test_exec_monitor) are
-            # unreferenced/inert, and nothing boost-compiled enters the static binary.
-            boost = pkgs.boost;
+            # `duplicate symbol` vs libc++abi. Hand poppler the build platform's
+            # headers and cmake config ONLY: no archive for the glob to find (the
+            # build boost's libboost_exception.a and libboost_test_exec_monitor.a
+            # are x86_64 and break a cross link), and on a cross no target boost,
+            # which would be a full build on a cross gcc for headers that are the
+            # same everywhere.
+            boost = let b = pkgs.buildPackages.boost; in
+              pkgs.buildPackages.runCommand "boost-headers-${b.version}" { } ''
+                mkdir -p $out/lib/cmake
+                ln -s ${b.dev}/include $out/include
+                ln -s ${b.dev}/lib/cmake/{Boost,boost_headers,BoostDetectToolset}-* $out/lib/cmake/
+              '';
           } // (if host.isDarwin then {
             # darwin: the cairo/text-render chain needs nix-lib's cross-within-
             # darwin fixes (glib/graphite2/fontconfig — same set rsvg-convert/ffmpeg
