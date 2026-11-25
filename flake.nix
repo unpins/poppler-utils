@@ -18,25 +18,6 @@
   outputs = { self, unpins-lib }:
     let
       ulib = unpins-lib.lib;
-
-      # Engine path (native Linux): poppler's utils are C++, but ALL external
-      # deps are C (cairo/freetype/fontconfig/jpeg/openjpeg/lcms2/curl/expat) —
-      # the only C++ is poppler's OWN in-derivation code. So this is a "true
-      # aom-like" tier-2: just engine-build poppler-utils itself (→ libc++) and
-      # let the bitcode self-fold pack the 12 utils into one binary; no codec
-      # chain to rebuild, no external libstdc++ to defeat. One stdenv (lto, with
-      # link capture) suffices — there are no asm-carrying C++ codec libs that
-      # would need the no-lto ELF stdenv (cf. avif).
-      engStdenv = pkgs:
-        let sp = pkgs.pkgsStatic; in
-        ulib.unpinAdapterStdenv {
-          inherit pkgs;
-          target = sp.stdenv.hostPlatform.config;
-          native = pkgs.stdenv.buildPlatform.system == pkgs.stdenv.hostPlatform.system;
-          cxx = true;
-          lto = true;
-          captureLinks = true;
-        };
     in
     ulib.mkStandaloneFlake {
       inherit self;
@@ -116,16 +97,12 @@
           isCrossDarwin = host.isDarwin
             && !(pkgs.stdenv.buildPlatform.canExecute host);
         in
-        # Engine path (native Linux AND darwin): build poppler-utils with the
-        # unpin-llvm engine stdenv (bitcode LTO + link capture) and return it
-        # directly — mkStandaloneFlake's bitcode self-fold packs the 12 utils into
-        # one binary. Both platforms self-fold identically; only the per-platform
-        # dep fixes below differ. The mingw cross gets its engine stdenv set-wide
-        # from multicall.windows = true, so it needs no swap of its own.
+        # pkgsStatic already builds with the engine stdenv set-wide; the self-fold
+        # packs the 12 utils into one binary. Only the per-platform dep fixes
+        # below differ.
         let
-          eng = engStdenv pkgs;
           sp = pkgs.pkgsStatic.extend (final: prev: {
-            poppler-utils = (prev.poppler-utils.override { stdenv = eng; }).overrideAttrs (o: {
+            poppler-utils = prev.poppler-utils.overrideAttrs (o: {
               # Upstream's suite is not runnable here: it wants TESTDATADIR, a
               # SEPARATE git checkout of reference PDFs that the tarball does not
               # carry, and what it builds are GTK/Qt viewers we do not.

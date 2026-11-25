@@ -1,3 +1,14 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -432,6 +432,8 @@
+   poppler/GfxFont.cc
+   poppler/GfxState.cc
+   poppler/GlobalParams.cc
++  poppler/unpin_data_vfs.c
++  poppler/miniz.c
+   poppler/Hints.cc
+   poppler/ImageEmbeddingUtils.cc
+   poppler/JArithmeticDecoder.cc
 --- a/poppler/GlobalParams.cc
 +++ b/poppler/GlobalParams.cc
 @@ -83,6 +83,7 @@

@@ -1,11 +1,12 @@
 /* Embedded poppler-data VFS — reads poppler's CMap / encoding tree from a ZIP
- * blob compiled into the binary (./unpin_data_blob.S incbin'ing a `zip -9` of
- * poppler-data), so the utils need no on-disk share/poppler. miniz reads the
- * blob in memory; GlobalParams.cc (patched, see ./poppler-data-embed.patch)
- * calls these instead of std::filesystem::directory_iterator + openFile.
+ * compiled into the binary as a C array (unpin_data_blob.h, `xxd -i` of a
+ * `zip -9` of poppler-data), so the utils need no on-disk share/poppler. miniz
+ * reads the blob in memory; GlobalParams.cc (patched, see
+ * ../poppler-data-embed.patch) calls these instead of
+ * std::filesystem::directory_iterator + openFile.
  *
- * Compiled into libpoppler (added to its CMake sources) so both the per-app
- * CMake links and the multicall relink resolve the symbols. */
+ * Compiled into libpoppler (added to its CMake sources) so both the per-program
+ * links and the engine's self-fold resolve the symbols. */
 #ifndef UNPIN_DATA_VFS_H
 #define UNPIN_DATA_VFS_H
 

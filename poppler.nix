@@ -105,10 +105,10 @@ sp.poppler-utils.overrideAttrs (old: {
   postPatch = (old.postPatch or "") + ''
     # VFS reader + miniz alongside GlobalParams.cc (its #include "unpin_data_vfs.h"
     # resolves from the same dir).
-    cp ${./src/unpin_data_vfs.c} poppler/unpin_data_vfs.c
-    cp ${./src/unpin_data_vfs.h} poppler/unpin_data_vfs.h
-    cp ${./src/miniz.c}          poppler/miniz.c
-    cp ${./src/miniz.h}          poppler/miniz.h
+    cp ${./src/unpin_data_vfs.c}    poppler/unpin_data_vfs.c
+    cp ${./src/unpin_data_vfs.h}    poppler/unpin_data_vfs.h
+    cp ${ulib.vfsCore + "/miniz.c"} poppler/miniz.c
+    cp ${ulib.vfsCore + "/miniz.h"} poppler/miniz.h
     # Pack the CMap/encoding tree (deterministic order, -X drops extra metadata)
     # and bake it in as a C array (xxd -i, const-ified) — a plain array embeds
     # identically on every target (no per-arch .S section/dialect or .incbin cwd).
@@ -120,11 +120,6 @@ sp.poppler-utils.overrideAttrs (old: {
       | sed 's/^unsigned char/const unsigned char/; s/^unsigned int/const unsigned int/' \
       > poppler/unpin_data_blob.h
     rm -f poppler/unpin_data.zip
-    # Add the two C sources to the poppler library target (project enables C).
-    substituteInPlace CMakeLists.txt \
-      --replace-fail "poppler/GlobalParams.cc" "poppler/GlobalParams.cc
-  poppler/unpin_data_vfs.c
-  poppler/miniz.c"
   '';
 
   # static fontconfig.a references expat's XML_* but does not bundle it.
