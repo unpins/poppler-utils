@@ -1,14 +1,14 @@
 --- a/poppler/GlobalParams.cc
 +++ b/poppler/GlobalParams.cc
-@@ -82,6 +82,7 @@
+@@ -83,6 +83,7 @@
  #include "CMap.h"
  #include "FontEncodingTables.h"
  #include "GlobalParams.h"
 +#include "unpin_data_vfs.h"
  #include "GfxFont.h"
  
- #ifdef WITH_FONTCONFIGURATION_FONTCONFIG
-@@ -460,27 +461,36 @@
+ #if WITH_FONTCONFIGURATION_FONTCONFIG
+@@ -477,27 +478,36 @@
  
  void GlobalParams::scanEncodingDirs()
  {
@@ -58,7 +58,7 @@
  }
  
  void GlobalParams::parseNameToUnicode(const std::filesystem::path &name)
-@@ -492,7 +502,7 @@
+@@ -509,7 +519,7 @@
      Unicode u;
      char *tokptr;
  
@@ -67,7 +67,7 @@
          error(errIO, -1, "Couldn't open 'nameToUnicode' file '{0:s}'", name.string().c_str());
          return;
      }
-@@ -596,7 +606,7 @@
+@@ -613,7 +623,7 @@
      globalParamsLocker();
      const auto unicodeMap = unicodeMaps.find(encodingName);
      if (unicodeMap != unicodeMaps.end()) {
@@ -76,24 +76,24 @@
      }
  
      return file;
-@@ -611,7 +621,7 @@
+@@ -627,7 +637,7 @@
+     const auto collectionCMapDirs = cMapDirs.equal_range(collection);
      for (auto cMapDir = collectionCMapDirs.first; cMapDir != collectionCMapDirs.second; ++cMapDir) {
-         auto *const path = new GooString(cMapDir->second);
-         appendToPath(path, cMapName.c_str());
--        file = openFile(path->c_str(), "r");
-+        file = unpin_data_fopen(path->c_str());
-         delete path;
+         const std::string path = appendToPath(cMapDir->second, cMapName);
+-        file = openFile(path.c_str(), "r");
++        file = unpin_data_fopen(path.c_str());
          if (file) {
              break;
-@@ -629,7 +639,7 @@
+         }
+@@ -641,7 +651,7 @@
      globalParamsLocker();
      for (const std::string &dir : toUnicodeDirs) {
-         fileName = appendToPath(new GooString(dir), name.c_str());
--        f = openFile(fileName->c_str(), "r");
-+        f = unpin_data_fopen(fileName->c_str());
-         delete fileName;
+         const std::string fileName = appendToPath(dir, name);
+-        FILE *f = openFile(fileName.c_str(), "r");
++        FILE *f = unpin_data_fopen(fileName.c_str());
          if (f) {
              return f;
+         }
 --- a/poppler/CharCodeToUnicode.cc
 +++ b/poppler/CharCodeToUnicode.cc
 @@ -46,6 +46,7 @@
